@@ -1,0 +1,99 @@
+import os
+import json
+import mimetypes
+from pathlib import Path
+from aiohttp import web
+from dotenv import load_dotenv
+
+load_dotenv()
+STORAGE_FILE = "file_store.json"
+
+def load_store():
+    if Path(STORAGE_FILE).exists():
+        with open(STORAGE_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_store(store):
+    with open(STORAGE_FILE, "w") as f:
+        json.dump(store, f, indent=2)
+
+async def serve_homepage(request):
+    store = load_store()
+    total_files = len(store)
+    total_downloads = sum(v.get("downloads", 0) for v in store.values())
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>TG Stream Server</title>
+<style>body{{font-family:monospace;background:#0a0a0a;color:#00ff88;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}</style>
+</head><body>
+<h1>⚡ TG Streaming Server (Pyrogram)</h1>
+<p>Files Hosted: {total_files} | Total Downloads: {total_downloads}</p>
+</body></html>"""
+    return web.Response(text=html, content_type="text/html")
+
+async def handle_download(request):
+    token = request.match_info.get('token')
+    store = load_store()
+    if token not in store:
+        return web.Response(status=404, text="File not found")
+        
+    info = store[token]
+    filename = info["filename"]
+    file_size = info["file_size"]
+    message_id = info["message_id"]
+    chat_id = info["chat_id"]
+    
+    bot_app = request.app['bot']
+    
+    msg = await bot_app.get_messages(chat_id, message_id)
+    if not msg:
+        return web.Response(status=404, text="Message not found on Telegram")
+        
+    file_obj = msg.document or msg.video or msg.audio or msg.photo
+    if not file_obj:
+        return web.Response(status=404, text="File not found on Telegram")
+        
+    mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Type": mime_type,
+        "Accept-Ranges": "bytes"
+    }
+
+    range_header = request.headers.get("Range")
+    start_byte = 0
+    end_byte = file_size - 1
+    
+    if range_header:
+        try:
+            s, e = range_header.replace("bytes=", "").split("-")
+            start_byte = int(s) if s else 0
+            end_byte = int(e) if e else file_size - 1
+            headers["Content-Range"] = f"bytes {start_byte}-{end_byte}/{file_size}"
+            response = web.StreamResponse(status=206, headers=headers)
+        except Exception:
+            response = web.StreamResponse(status=200, headers=headers)
+    else:
+        response = web.StreamResponse(status=200, headers=headers)
+        
+    response.content_length = end_byte - start_byte + 1
+    await response.prepare(request)
+    
+    try:
+        async for chunk in bot_app.stream_media(file_obj, offset=start_byte, limit=(end_byte - start_byte + 1)):
+            await response.write(chunk)
+            
+        store[token]["downloads"] = store[token].get("downloads", 0) + 1
+        save_store(store)
+    except Exception as e:
+        print(f"Stream error: {e}")
+        
+    return response
+
+def create_app(bot_app):
+    app = web.Application()
+    app['bot'] = bot_app
+    app.router.add_get('/', serve_homepage)
+    app.router.add_get('/download/{token}', handle_download)
+    return app
