@@ -138,6 +138,11 @@ async def handle_stream(request):
 </html>"""
 
     return web.Response(text=html, content_type="text/html")
+
+async def handle_download(request):
+    return await serve_file(request, inline=False)
+
+def create_app(bot_app):
     app = web.Application()
     app['bot'] = bot_app
     app.router.add_get('/', serve_homepage)
