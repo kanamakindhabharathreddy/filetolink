@@ -31,7 +31,7 @@ async def serve_homepage(request):
 </body></html>"""
     return web.Response(text=html, content_type="text/html")
 
-async def handle_download(request):
+async def serve_file(request, inline=False):
     token = request.match_info.get('token')
     store = load_store()
     if token not in store:
@@ -55,8 +55,9 @@ async def handle_download(request):
         
     mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     
+    disposition = "inline" if inline else "attachment"
     headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Disposition": f'{disposition}; filename="{filename}"',
         "Content-Type": mime_type,
         "Accept-Ranges": "bytes"
     }
@@ -91,9 +92,16 @@ async def handle_download(request):
         
     return response
 
+async def handle_download(request):
+    return await serve_file(request, inline=False)
+
+async def handle_stream(request):
+    return await serve_file(request, inline=True)
+
 def create_app(bot_app):
     app = web.Application()
     app['bot'] = bot_app
     app.router.add_get('/', serve_homepage)
     app.router.add_get('/download/{token}', handle_download)
+    app.router.add_get('/stream/{token}', handle_stream)
     return app

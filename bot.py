@@ -80,6 +80,7 @@ async def handle_file(client, message):
         save_store(store)
         
         download_url = f"{BASE_URL}/download/{token}"
+        stream_url = f"{BASE_URL}/stream/{token}"
         size = getattr(file_obj, "file_size", 0) or 0
         if size > 1024**3:
             size_str = f"{size/1024**3:.1f} GB"
@@ -88,14 +89,18 @@ async def handle_file(client, message):
         else:
             size_str = f"{size/1024:.1f} KB"
             
-        keyboard = [[InlineKeyboardButton("⬇️ Download File", url=download_url)]]
+        keyboard = [
+            [InlineKeyboardButton("⬇️ Download", url=download_url)],
+            [InlineKeyboardButton("▶️ Stream (Browser)", url=stream_url)]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard) if "localhost" not in BASE_URL and "127.0.0.1" not in BASE_URL else None
         
         await msg.edit_text(
-            f"✅ **File ready for streaming!**\n\n"
+            f"✅ **File ready!**\n\n"
             f"📄 **Name:** `{safe_filename}`\n"
             f"📦 **Size:** {size_str}\n\n"
-            f"🔗 **Link:**\n`{download_url}`",
+            f"🔗 **Download:** `{download_url}`\n"
+            f"🔗 **Stream:** `{stream_url}`",
             reply_markup=reply_markup
         )
     except Exception as e:
