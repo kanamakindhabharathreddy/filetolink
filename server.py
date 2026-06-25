@@ -92,13 +92,52 @@ async def serve_file(request, inline=False):
         
     return response
 
-async def handle_download(request):
-    return await serve_file(request, inline=False)
-
 async def handle_stream(request):
-    return await serve_file(request, inline=True)
+    token = request.match_info.get('token')
+    store = load_store()
+    if token not in store:
+        return web.Response(status=404, text="File not found")
+        
+    info = store[token]
+    filename = info.get("filename", "")
+    mime_type = mimetypes.guess_type(filename)[0] or "video/mp4"
+    
+    # Serve an HTML page with a video player
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Streaming: {filename}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {{ margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; color: white; font-family: sans-serif; }}
+        video {{ max-width: 100%; max-height: 100vh; outline: none; }}
+        .audio-container {{ text-align: center; }}
+    </style>
+</head>
+<body>
+    """
+    
+    if "audio" in mime_type:
+        html += f"""
+        <div class="audio-container">
+            <h2>{filename}</h2>
+            <audio controls autoplay>
+                <source src="/download/{token}" type="{mime_type}">
+                Your browser does not support the audio element.
+            </audio>
+        </div>"""
+    else:
+        html += f"""
+        <video controls autoplay playsinline>
+            <source src="/download/{token}" type="{mime_type}">
+            Your browser does not support the video tag.
+        </video>"""
+        
+    html += """
+</body>
+</html>"""
 
-def create_app(bot_app):
+    return web.Response(text=html, content_type="text/html")
     app = web.Application()
     app['bot'] = bot_app
     app.router.add_get('/', serve_homepage)
