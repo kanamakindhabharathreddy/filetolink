@@ -125,9 +125,10 @@ async def handle_stream(request):
 <head>
     <title>Streaming: {filename}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/movi-player@latest/dist/index.min.js"></script>
     <style>
         body {{ margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; color: white; font-family: sans-serif; }}
-        video {{ max-width: 100%; max-height: 100vh; outline: none; }}
+        movi-player, video {{ width: 100vw; height: 100vh; outline: none; }}
         .audio-container {{ text-align: center; }}
     </style>
 </head>
@@ -145,10 +146,8 @@ async def handle_stream(request):
         </div>"""
     else:
         html += f"""
-        <video controls autoplay playsinline>
-            <source src="/download/{token}" type="{mime_type}">
-            Your browser does not support the video tag.
-        </video>"""
+        <movi-player src="/download/{token}" controls autoplay></movi-player>
+        """
         
     html += """
 </body>
