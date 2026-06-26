@@ -6,11 +6,12 @@ from dotenv import load_dotenv
 from aiohttp import web
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     stream=sys.stdout,
     force=True
 )
+logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
