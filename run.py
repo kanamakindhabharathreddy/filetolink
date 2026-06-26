@@ -1,8 +1,16 @@
 import os
 import sys
 import asyncio
+import logging
 from dotenv import load_dotenv
 from aiohttp import web
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stdout,
+    force=True
+)
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -20,13 +28,6 @@ from bot import app as bot_app
 from server import create_app
 
 async def main():
-    import logging, sys
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        stream=sys.stdout,
-        force=True
-    )
     print(f"Starting web server on {HOST}:{PORT}...")
     web_app = create_app(bot_app)
     web_app['pyrogram_sem'] = asyncio.Semaphore(3)
