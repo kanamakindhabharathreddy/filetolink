@@ -1,9 +1,14 @@
 import os
 import json
+import math
+import asyncio
+import logging
 import mimetypes
 from pathlib import Path
 from aiohttp import web
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 STORAGE_FILE = "file_store.json"
@@ -32,6 +37,70 @@ async def serve_homepage(request):
     return web.Response(text=html, content_type="text/html")
 
 MESSAGE_CACHE = {}
+
+CHUNK_SIZE = 1048576  # Pyrogram's fixed 1 MiB chunk size
+
+async def _pipe_stream(request, response, bot_app, target_media,
+                       first_chunk_idx, num_chunks, slice_start, content_length):
+    """
+    Streams Pyrogram chunks to the aiohttp response.
+    Isolated into its own function so the finally block can guarantee
+    generator.aclose() is called regardless of how the loop exits
+    (client abort, ConnectionResetError, CancelledError, or normal EOF).
+    """
+    generator = bot_app.stream_media(
+        target_media,
+        offset=first_chunk_idx,
+        limit=num_chunks,
+    )
+    bytes_remaining = content_length
+    is_first_chunk = True
+
+    try:
+        async for raw_chunk in generator:
+            # Detect client disconnect before attempting a write.
+            if request.transport is None or request.transport.is_closing():
+                logger.debug("Client disconnected mid-stream, cleaning up generator.")
+                break
+
+            # Slice the first chunk to honour the byte-level range start.
+            if is_first_chunk:
+                raw_chunk = raw_chunk[slice_start:]
+                is_first_chunk = False
+
+            # Trim the last chunk so we never overshoot the requested range end.
+            if len(raw_chunk) > bytes_remaining:
+                raw_chunk = raw_chunk[:bytes_remaining]
+
+            if not raw_chunk:
+                break
+
+            try:
+                await response.write(raw_chunk)
+            except (ConnectionResetError, BrokenPipeError, asyncio.CancelledError):
+                # Client aborted (normal for movi-player's probing requests).
+                logger.debug("Write interrupted by client, breaking stream loop.")
+                break
+
+            bytes_remaining -= len(raw_chunk)
+            if bytes_remaining <= 0:
+                break
+
+    except asyncio.CancelledError:
+        logger.debug("Stream handler task cancelled (server shutdown or client abort).")
+
+    except Exception as e:
+        logger.error(f"Unexpected error in _pipe_stream: {e}", exc_info=True)
+
+    finally:
+        # THE CRITICAL FIX: explicitly close the async generator.
+        # This throws GeneratorExit into stream_media, causing Pyrogram to
+        # cancel the in-flight GetFile RPC and release the MTProto session slot.
+        # Without this, every aborted request leaks a slot until the pool deadlocks.
+        try:
+            await generator.aclose()
+        except Exception as e:
+            logger.warning(f"Error during generator.aclose(): {e}")
 
 async def serve_file(request, inline=False):
     token = request.match_info.get('token')
@@ -93,31 +162,22 @@ async def serve_file(request, inline=False):
     response.content_length = end_byte - start_byte + 1
     await response.prepare(request)
     
+    content_length = end_byte - start_byte + 1
+    first_chunk_idx = start_byte // CHUNK_SIZE
+    slice_start = start_byte % CHUNK_SIZE
+    num_chunks = math.ceil((slice_start + content_length) / CHUNK_SIZE)
+
+    async with request.app['pyrogram_sem']:
+        await _pipe_stream(
+            request, response, bot_app, target_media,
+            first_chunk_idx, num_chunks, slice_start, content_length
+        )
+
     try:
-        chunk_size = 1048576 # 1MB Telegram chunk size
-        chunk_offset = start_byte // chunk_size
-        bytes_to_skip = start_byte % chunk_size
-        bytes_to_send = end_byte - start_byte + 1
-        
-        async for chunk in bot_app.stream_media(target_media, offset=chunk_offset):
-            if bytes_to_skip > 0:
-                chunk = chunk[bytes_to_skip:]
-                bytes_to_skip = 0
-                
-            if not chunk:
-                continue
-                
-            if bytes_to_send <= len(chunk):
-                await response.write(chunk[:bytes_to_send])
-                break
-                
-            await response.write(chunk)
-            bytes_to_send -= len(chunk)
-            
         store[token]["downloads"] = store[token].get("downloads", 0) + 1
         save_store(store)
     except Exception as e:
-        print(f"Stream error: {e}")
+        logger.warning(f"Could not update download counter: {e}")
         
     return response
 

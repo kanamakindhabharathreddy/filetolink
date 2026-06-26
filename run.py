@@ -25,6 +25,7 @@ async def main():
     print("Bot started!")
     
     web_app = create_app(bot_app)
+    web_app['pyrogram_sem'] = asyncio.Semaphore(3)
     runner = web.AppRunner(web_app)
     await runner.setup()
     site = web.TCPSite(runner, HOST, PORT)
