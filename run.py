@@ -20,17 +20,19 @@ from bot import app as bot_app
 from server import create_app
 
 async def main():
-    print(f"Starting bot... will bind to {HOST}:{PORT}")
-    await bot_app.start()
-    print(f"Bot started! Launching web server on {HOST}:{PORT}")
-    
+    print(f"Starting web server on {HOST}:{PORT}...")
     web_app = create_app(bot_app)
     web_app['pyrogram_sem'] = asyncio.Semaphore(3)
     runner = web.AppRunner(web_app)
     await runner.setup()
     site = web.TCPSite(runner, HOST, PORT)
     await site.start()
-    print(f"Server running at http://{HOST}:{PORT}")
+    print(f"Web server live on {HOST}:{PORT}")
+
+    # Start bot AFTER web server is already accepting connections
+    print("Starting Pyrogram bot...")
+    await bot_app.start()
+    print("Bot started. Ready to serve files.")
     
     # Keep running forever
     await asyncio.Event().wait()
