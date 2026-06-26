@@ -82,8 +82,25 @@ async def serve_file(request, inline=False):
     await response.prepare(request)
     
     try:
-        async for chunk in bot_app.stream_media(file_obj, offset=start_byte, limit=(end_byte - start_byte + 1)):
+        chunk_size = 1048576 # 1MB Telegram chunk size
+        bytes_to_skip = start_byte % chunk_size
+        aligned_offset = start_byte - bytes_to_skip
+        bytes_to_send = end_byte - start_byte + 1
+        
+        async for chunk in bot_app.stream_media(file_obj, offset=aligned_offset):
+            if bytes_to_skip > 0:
+                chunk = chunk[bytes_to_skip:]
+                bytes_to_skip = 0
+                
+            if not chunk:
+                continue
+                
+            if bytes_to_send <= len(chunk):
+                await response.write(chunk[:bytes_to_send])
+                break
+                
             await response.write(chunk)
+            bytes_to_send -= len(chunk)
             
         store[token]["downloads"] = store[token].get("downloads", 0) + 1
         save_store(store)
