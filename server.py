@@ -59,7 +59,9 @@ async def serve_file(request, inline=False):
     headers = {
         "Content-Disposition": f'{disposition}; filename="{filename}"',
         "Content-Type": mime_type,
-        "Accept-Ranges": "bytes"
+        "Accept-Ranges": "bytes",
+        "Cross-Origin-Resource-Policy": "cross-origin",
+        "Access-Control-Allow-Origin": "*"
     }
 
     range_header = request.headers.get("Range")
@@ -153,7 +155,14 @@ async def handle_stream(request):
 </body>
 </html>"""
 
-    return web.Response(text=html, content_type="text/html")
+    return web.Response(
+        text=html, 
+        content_type="text/html",
+        headers={
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp"
+        }
+    )
 
 async def handle_download(request):
     return await serve_file(request, inline=False)
