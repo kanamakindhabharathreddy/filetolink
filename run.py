@@ -20,9 +20,9 @@ from bot import app as bot_app
 from server import create_app
 
 async def main():
-    print("Starting bot...")
+    print(f"Starting bot... will bind to {HOST}:{PORT}")
     await bot_app.start()
-    print("Bot started!")
+    print(f"Bot started! Launching web server on {HOST}:{PORT}")
     
     web_app = create_app(bot_app)
     web_app['pyrogram_sem'] = asyncio.Semaphore(3)
