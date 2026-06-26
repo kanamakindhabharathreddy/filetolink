@@ -31,6 +31,8 @@ async def serve_homepage(request):
 </body></html>"""
     return web.Response(text=html, content_type="text/html")
 
+MESSAGE_CACHE = {}
+
 async def serve_file(request, inline=False):
     token = request.match_info.get('token')
     store = load_store()
@@ -42,21 +44,24 @@ async def serve_file(request, inline=False):
     file_size = info["file_size"]
     message_id = info["message_id"]
     chat_id = info["chat_id"]
-    file_id = info.get("file_id")
     
     bot_app = request.app['bot']
     
-    if not file_id:
+    cache_key = f"{chat_id}_{message_id}"
+    msg = MESSAGE_CACHE.get(cache_key)
+    if not msg:
         msg = await bot_app.get_messages(chat_id, message_id)
-        if not msg:
-            return web.Response(status=404, text="Message not found on Telegram")
+        if msg:
+            MESSAGE_CACHE[cache_key] = msg
             
-        file_obj = msg.document or msg.video or msg.audio or msg.photo
-        if not file_obj:
-            return web.Response(status=404, text="File not found on Telegram")
-        target_media = file_obj
-    else:
-        target_media = file_id
+    if not msg:
+        return web.Response(status=404, text="Message not found on Telegram")
+        
+    file_obj = msg.document or msg.video or msg.audio or msg.photo
+    if not file_obj:
+        return web.Response(status=404, text="File not found on Telegram")
+        
+    target_media = file_obj
         
     mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     
