@@ -104,6 +104,7 @@ async def _pipe_stream(request, response, bot_app, target_media,
 
 async def serve_file(request, inline=False):
     token = request.match_info.get('token')
+    print(f"[serve_file] HIT — token={token}, range={request.headers.get('Range')}")
     store = load_store()
     if token not in store:
         return web.Response(status=404, text="File not found")
