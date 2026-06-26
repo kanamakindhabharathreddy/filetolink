@@ -74,6 +74,7 @@ async def handle_file(client, message):
             "message_id": message.id,
             "chat_id": message.chat.id,
             "file_size": getattr(file_obj, "file_size", 0),
+            "file_id": getattr(file_obj, "file_id", ""),
             "uploaded_at": time.time(),
             "downloads": 0
         }

@@ -42,16 +42,21 @@ async def serve_file(request, inline=False):
     file_size = info["file_size"]
     message_id = info["message_id"]
     chat_id = info["chat_id"]
+    file_id = info.get("file_id")
     
     bot_app = request.app['bot']
     
-    msg = await bot_app.get_messages(chat_id, message_id)
-    if not msg:
-        return web.Response(status=404, text="Message not found on Telegram")
-        
-    file_obj = msg.document or msg.video or msg.audio or msg.photo
-    if not file_obj:
-        return web.Response(status=404, text="File not found on Telegram")
+    if not file_id:
+        msg = await bot_app.get_messages(chat_id, message_id)
+        if not msg:
+            return web.Response(status=404, text="Message not found on Telegram")
+            
+        file_obj = msg.document or msg.video or msg.audio or msg.photo
+        if not file_obj:
+            return web.Response(status=404, text="File not found on Telegram")
+        target_media = file_obj
+    else:
+        target_media = file_id
         
     mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     
@@ -89,7 +94,7 @@ async def serve_file(request, inline=False):
         bytes_to_skip = start_byte % chunk_size
         bytes_to_send = end_byte - start_byte + 1
         
-        async for chunk in bot_app.stream_media(file_obj, offset=chunk_offset):
+        async for chunk in bot_app.stream_media(target_media, offset=chunk_offset):
             if bytes_to_skip > 0:
                 chunk = chunk[bytes_to_skip:]
                 bytes_to_skip = 0
