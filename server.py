@@ -219,6 +219,11 @@ async def handle_stream(request):
         </div>"""
     else:
         html += f"""
+        <div style="position: absolute; top: 10px; left: 10px; z-index: 9999; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px;">
+            <p style="margin: 0 0 10px 0; font-size: 14px;">If video fails to play (MKV/AC3 codec limitation):</p>
+            <input type="text" value="https://{request.host}/download/{token}" readonly style="width: 300px; padding: 5px; background: #222; color: #0f0; border: 1px solid #444; border-radius: 4px;" onclick="this.select()">
+            <p style="margin: 10px 0 0 0; font-size: 12px; color: #aaa;">Copy this link and open in <b>VLC, MPV, or MX Player</b> (Network Stream) for full multi-audio/subtitle support.</p>
+        </div>
         <movi-player src="/download/{token}" controls autoplay></movi-player>
         """
         
