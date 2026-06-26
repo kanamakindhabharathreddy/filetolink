@@ -83,11 +83,11 @@ async def serve_file(request, inline=False):
     
     try:
         chunk_size = 1048576 # 1MB Telegram chunk size
+        chunk_offset = start_byte // chunk_size
         bytes_to_skip = start_byte % chunk_size
-        aligned_offset = start_byte - bytes_to_skip
         bytes_to_send = end_byte - start_byte + 1
         
-        async for chunk in bot_app.stream_media(file_obj, offset=aligned_offset):
+        async for chunk in bot_app.stream_media(file_obj, offset=chunk_offset):
             if bytes_to_skip > 0:
                 chunk = chunk[bytes_to_skip:]
                 bytes_to_skip = 0
