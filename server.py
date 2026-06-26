@@ -125,7 +125,7 @@ async def handle_stream(request):
 <head>
     <title>Streaming: {filename}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdn.jsdelivr.net/npm/movi-player@latest/dist/index.min.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/movi-player@latest/dist/index.min.js"></script>
     <style>
         body {{ margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; color: white; font-family: sans-serif; }}
         movi-player, video {{ width: 100vw; height: 100vh; outline: none; }}
