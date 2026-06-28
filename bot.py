@@ -118,9 +118,6 @@ async def handle_file(client, message):
         save_store(store)
         
         download_url = f"{BASE_URL}/download/{token}"
-        stream_url = f"{BASE_URL}/stream/{token}"
-        bot_info = await client.get_me()
-        telegram_url = f"https://t.me/{bot_info.username}?start={token}"
         
         size = getattr(file_obj, "file_size", 0) or 0
         if size > 1024**3:
@@ -131,9 +128,7 @@ async def handle_file(client, message):
             size_str = f"{size/1024:.1f} KB"
             
         keyboard = [
-            [InlineKeyboardButton("⬇️ Download", url=download_url)],
-            [InlineKeyboardButton("▶️ Stream (Browser)", url=stream_url)],
-            [InlineKeyboardButton("📱 Watch in Telegram", url=telegram_url)]
+            [InlineKeyboardButton("⬇️ Download", url=download_url)]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard) if "localhost" not in BASE_URL and "127.0.0.1" not in BASE_URL else None
         
@@ -141,9 +136,7 @@ async def handle_file(client, message):
             f"✅ **File ready!**\n\n"
             f"📄 **Name:** `{safe_filename}`\n"
             f"📦 **Size:** {size_str}\n\n"
-            f"🔗 **Download:** `{download_url}`\n"
-            f"🔗 **Stream:** `{stream_url}`\n"
-            f"🔗 **Telegram:** `{telegram_url}`",
+            f"🔗 **Download:** `{download_url}`",
             reply_markup=reply_markup
         )
     except Exception as e:
