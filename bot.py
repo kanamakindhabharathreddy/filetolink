@@ -38,14 +38,33 @@ async def start(client, message):
         store = load_store()
         if token in store:
             try:
-                await client.copy_message(
-                    chat_id=message.chat.id,
-                    from_chat_id=store[token]["chat_id"],
-                    message_id=store[token]["message_id"]
-                )
+                file_id = store[token]["file_id"]
+                filename = store[token]["filename"]
+                ext = filename.lower().split('.')[-1] if '.' in filename else ''
+                
+                if ext in ['mp4', 'mkv', 'avi', 'mov', 'webm']:
+                    await client.send_video(
+                        chat_id=message.chat.id,
+                        video=file_id,
+                        caption=f"`{filename}`"
+                    )
+                else:
+                    await client.send_document(
+                        chat_id=message.chat.id,
+                        document=file_id,
+                        caption=f"`{filename}`"
+                    )
                 return
             except Exception as e:
-                await message.reply_text("❌ Error retrieving file.")
+                # Fallback to copying the exact original message if send_video/document fails
+                try:
+                    await client.copy_message(
+                        chat_id=message.chat.id,
+                        from_chat_id=store[token]["chat_id"],
+                        message_id=store[token]["message_id"]
+                    )
+                except Exception as e2:
+                    await message.reply_text("❌ Error retrieving file.")
                 return
         else:
             await message.reply_text("❌ Invalid or expired link.")
