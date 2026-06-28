@@ -51,7 +51,6 @@ async def _ffmpeg_worker(token, bot_app, target_media, pyrogram_sem):
             async for chunk in generator:
                 if process.returncode is not None:
                     break
-                SESSIONS[token]['last_accessed'] = time.time()
                 process.stdin.write(chunk)
                 await process.stdin.drain()
     except asyncio.CancelledError:
@@ -122,11 +121,11 @@ async def serve_hls_segment(request):
 
 async def cleanup_worker():
     while True:
-        await asyncio.sleep(60)
+        await asyncio.sleep(15)
         now = time.time()
         to_delete = []
         for token, data in SESSIONS.items():
-            if now - data['last_accessed'] > 120:  # 2 minutes idle
+            if now - data['last_accessed'] > 30:  # 30 seconds idle
                 to_delete.append(token)
                 
         for token in to_delete:
