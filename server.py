@@ -225,6 +225,9 @@ async def handle_stream(request):
 <body>
     <div style="position: absolute; top: 10px; left: 10px; z-index: 9999; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px;">
         <p style="margin: 0 0 10px 0; font-size: 14px; color: white;">Transcoding on the fly (Audio only)</p>
+        <p style="margin: 0 0 10px 0; font-size: 14px; color: #ff5555;">If screen is black (HEVC Codec issue on PC):</p>
+        <input type="text" value="https://{request.host}/download/{token}" readonly style="width: 300px; padding: 5px; background: #222; color: #0f0; border: 1px solid #444; border-radius: 4px;" onclick="this.select()">
+        <p style="margin: 10px 0 0 0; font-size: 12px; color: #aaa;">Copy link & open in <b>VLC, MPV, or MX Player</b> (Network Stream)</p>
     </div>
     <video id="video" controls autoplay></video>
     <script>
