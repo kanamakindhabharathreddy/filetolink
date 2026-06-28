@@ -152,8 +152,13 @@ async def serve_file(request, inline=False):
     if range_header:
         try:
             s, e = range_header.replace("bytes=", "").split("-")
-            start_byte = int(s) if s else 0
-            end_byte = int(e) if e else file_size - 1
+            if s == "":
+                # bytes=-N (tail)
+                end_byte = file_size - 1
+                start_byte = max(0, file_size - int(e))
+            else:
+                start_byte = int(s)
+                end_byte = int(e) if e else file_size - 1
             headers["Content-Range"] = f"bytes {start_byte}-{end_byte}/{file_size}"
             response = web.StreamResponse(status=206, headers=headers)
         except Exception:
