@@ -42,7 +42,8 @@ async def _ffmpeg_worker(token, bot_app, target_media, pyrogram_sem):
         stderr=asyncio.subprocess.DEVNULL
     )
 
-    SESSIONS[token] = {'process': process, 'last_accessed': time.time(), 'dir': out_dir}
+    if token in SESSIONS:
+        SESSIONS[token]['process'] = process
 
     generator = bot_app.stream_media(target_media)
     
@@ -77,7 +78,10 @@ async def start_hls_session(token, bot_app, target_media, pyrogram_sem):
         SESSIONS[token]['last_accessed'] = time.time()
         return
     
-    asyncio.create_task(_ffmpeg_worker(token, bot_app, target_media, pyrogram_sem))
+    SESSIONS[token] = {'last_accessed': time.time(), 'dir': os.path.join(HLS_DIR, token)}
+    task = asyncio.create_task(_ffmpeg_worker(token, bot_app, target_media, pyrogram_sem))
+    if token in SESSIONS:
+        SESSIONS[token]['task'] = task
 
 async def serve_hls_playlist(request):
     token = request.match_info.get('token')
@@ -131,10 +135,15 @@ async def cleanup_worker():
         for token in to_delete:
             logger.info(f"Cleaning up idle HLS session {token}")
             data = SESSIONS.pop(token)
-            try:
-                data['process'].kill()
-            except:
-                pass
+            
+            if 'task' in data:
+                data['task'].cancel()
+                
+            if 'process' in data:
+                try:
+                    data['process'].kill()
+                except:
+                    pass
             shutil.rmtree(data['dir'], ignore_errors=True)
 
 def setup_hls_routes(app):
