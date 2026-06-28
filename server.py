@@ -7,6 +7,7 @@ import mimetypes
 from pathlib import Path
 from aiohttp import web
 from dotenv import load_dotenv
+import hls_manager
 
 logger = logging.getLogger(__name__)
 
@@ -191,8 +192,78 @@ async def handle_stream(request):
     info = store[token]
     filename = info.get("filename", "")
     mime_type = mimetypes.guess_type(filename)[0] or "video/mp4"
+    ext = filename.lower().split('.')[-1] if '.' in filename else ''
     
-    # Serve an HTML page with a video player
+    if ext in ['mkv', 'avi']:
+        chat_id = info["chat_id"]
+        message_id = info["message_id"]
+        bot_app = request.app['bot']
+        cache_key = f"{chat_id}_{message_id}"
+        msg = MESSAGE_CACHE.get(cache_key)
+        if not msg:
+            msg = await bot_app.get_messages(chat_id, message_id)
+            if msg:
+                MESSAGE_CACHE[cache_key] = msg
+        file_obj = None
+        if msg:
+            file_obj = msg.document or msg.video or msg.audio or msg.photo
+            if file_obj:
+                await hls_manager.start_hls_session(token, bot_app, file_obj, request.app['pyrogram_sem'])
+        
+        duration = getattr(file_obj, 'duration', 0) if file_obj else 0
+        
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Stream: {filename}</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    <style>
+        body {{ margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; color: white; font-family: sans-serif; }}
+        video {{ width: 100vw; height: 100vh; outline: none; }}
+    </style>
+</head>
+<body>
+    <div style="position: absolute; top: 10px; left: 10px; z-index: 9999; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px;">
+        <p style="margin: 0 0 10px 0; font-size: 14px; color: white;">Transcoding on the fly (Audio only)</p>
+    </div>
+    <video id="video" controls autoplay></video>
+    <script>
+        var video = document.getElementById('video');
+        var videoSrc = '/hls/{token}/stream.m3u8';
+        if (Hls.isSupported()) {{
+            var hls = new Hls();
+            hls.loadSource(videoSrc);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() {{
+                video.play();
+            }});
+            
+            let fileDuration = {duration};
+            if (fileDuration > 0) {{
+                hls.on(Hls.Events.LEVEL_LOADED, (event, data) => {{
+                    try {{
+                        if (Math.abs(video.duration - fileDuration) > 1) {{
+                            Object.defineProperty(video, 'duration', {{
+                                value: fileDuration,
+                                writable: false
+                            }});
+                        }}
+                    }} catch(e) {{}}
+                }});
+            }}
+        }}
+        else if (video.canPlayType('application/vnd.apple.mpegurl')) {{
+            video.src = videoSrc;
+            video.addEventListener('loadedmetadata', function() {{
+                video.play();
+            }});
+        }}
+    </script>
+</body>
+</html>"""
+        return web.Response(text=html, content_type="text/html")
+    
+    # Serve an HTML page with a video player for non-MKV files
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -219,11 +290,6 @@ async def handle_stream(request):
         </div>"""
     else:
         html += f"""
-        <div style="position: absolute; top: 10px; left: 10px; z-index: 9999; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px;">
-            <p style="margin: 0 0 10px 0; font-size: 14px;">If video fails to play (MKV/AC3 codec limitation):</p>
-            <input type="text" value="https://{request.host}/download/{token}" readonly style="width: 300px; padding: 5px; background: #222; color: #0f0; border: 1px solid #444; border-radius: 4px;" onclick="this.select()">
-            <p style="margin: 10px 0 0 0; font-size: 12px; color: #aaa;">Copy this link and open in <b>VLC, MPV, or MX Player</b> (Network Stream) for full multi-audio/subtitle support.</p>
-        </div>
         <movi-player src="/download/{token}" controls autoplay></movi-player>
         """
         
@@ -249,4 +315,5 @@ def create_app(bot_app):
     app.router.add_get('/', serve_homepage)
     app.router.add_get('/download/{token}', handle_download)
     app.router.add_get('/stream/{token}', handle_stream)
+    hls_manager.setup_hls_routes(app)
     return app
