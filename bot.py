@@ -33,6 +33,24 @@ def generate_token(file_id: str) -> str:
 
 @app.on_message(filters.command("start"))
 async def start(client, message):
+    if len(message.command) > 1:
+        token = message.command[1]
+        store = load_store()
+        if token in store:
+            try:
+                await client.copy_message(
+                    chat_id=message.chat.id,
+                    from_chat_id=store[token]["chat_id"],
+                    message_id=store[token]["message_id"]
+                )
+                return
+            except Exception as e:
+                await message.reply_text("❌ Error retrieving file.")
+                return
+        else:
+            await message.reply_text("❌ Invalid or expired link.")
+            return
+
     await message.reply_text(
         "👋 **File → Link Bot (Streaming Edition)**\n\n"
         "📤 Send me **any file** up to 4GB\n"
@@ -82,6 +100,9 @@ async def handle_file(client, message):
         
         download_url = f"{BASE_URL}/download/{token}"
         stream_url = f"{BASE_URL}/stream/{token}"
+        bot_info = await client.get_me()
+        telegram_url = f"https://t.me/{bot_info.username}?start={token}"
+        
         size = getattr(file_obj, "file_size", 0) or 0
         if size > 1024**3:
             size_str = f"{size/1024**3:.1f} GB"
@@ -92,7 +113,8 @@ async def handle_file(client, message):
             
         keyboard = [
             [InlineKeyboardButton("⬇️ Download", url=download_url)],
-            [InlineKeyboardButton("▶️ Stream (Browser)", url=stream_url)]
+            [InlineKeyboardButton("▶️ Stream (Browser)", url=stream_url)],
+            [InlineKeyboardButton("📱 Watch in Telegram", url=telegram_url)]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard) if "localhost" not in BASE_URL and "127.0.0.1" not in BASE_URL else None
         
@@ -101,7 +123,8 @@ async def handle_file(client, message):
             f"📄 **Name:** `{safe_filename}`\n"
             f"📦 **Size:** {size_str}\n\n"
             f"🔗 **Download:** `{download_url}`\n"
-            f"🔗 **Stream:** `{stream_url}`",
+            f"🔗 **Stream:** `{stream_url}`\n"
+            f"🔗 **Telegram:** `{telegram_url}`",
             reply_markup=reply_markup
         )
     except Exception as e:
