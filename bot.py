@@ -14,7 +14,7 @@ API_HASH = os.getenv("API_HASH", "b18441a1ff607e10a989891a5462e627")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8080")
 STORAGE_FILE = "file_store.json"
 
-app = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, workers=4)
+app = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, workers=4, max_concurrent_transmissions=5)
 
 def load_store():
     if Path(STORAGE_FILE).exists():
