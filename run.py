@@ -31,7 +31,7 @@ from server import create_app
 async def main():
     print(f"Starting web server on {HOST}:{PORT}...")
     web_app = create_app(bot_app)
-    web_app['pyrogram_sem'] = asyncio.Semaphore(3)
+    web_app['pyrogram_sem'] = asyncio.Semaphore(5)
     runner = web.AppRunner(web_app)
     await runner.setup()
     site = web.TCPSite(runner, HOST, PORT)

@@ -7,7 +7,7 @@ import mimetypes
 from pathlib import Path
 from aiohttp import web
 from dotenv import load_dotenv
-import hls_manager
+
 
 logger = logging.getLogger(__name__)
 
@@ -166,15 +166,17 @@ async def serve_file(request, inline=False):
     else:
         response = web.StreamResponse(status=200, headers=headers)
         
-    response.content_length = end_byte - start_byte + 1
-    await response.prepare(request)
-    
     content_length = end_byte - start_byte + 1
+    response.content_length = content_length
     first_chunk_idx = start_byte // CHUNK_SIZE
     slice_start = start_byte % CHUNK_SIZE
     num_chunks = math.ceil((slice_start + content_length) / CHUNK_SIZE)
 
+    # Acquire semaphore BEFORE preparing the response.
+    # If we prepare first and then block on the semaphore, the browser sees
+    # an accepted connection with no data flowing — it hangs forever.
     async with request.app['pyrogram_sem']:
+        await response.prepare(request)
         await _pipe_stream(
             request, response, bot_app, target_media,
             first_chunk_idx, num_chunks, slice_start, content_length
